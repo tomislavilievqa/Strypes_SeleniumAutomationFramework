@@ -1,0 +1,26 @@
+{
+
+  "Testing": {
+    "BaseUrl": "testing.strypes.eu",
+    "ltUserName": "tomislav.iliev",
+    "ltAccessKey": "xBjdqUAoWwrpBiK8oiUv1nop8QPrpf9TeEIdup4PQ9uhfcJWz8",
+  },
+  "Staging": {
+    "BaseUrl": "staging.strypes.eu",
+    "ltUserName": "tomislav.iliev",
+    "ltAccessKey": "xBjdqUAoWwrpBiK8oiUv1nop8QPrpf9TeEIdup4PQ9uhfcJWz8",
+  },
+  "Production": {
+    "BaseUrl": "strypes.eu",
+    "ltUserName": "tomislav.iliev",
+    "ltAccessKey": "xBjdqUAoWwrpBiK8oiUv1nop8QPrpf9TeEIdup4PQ9uhfcJWz8",
+  },
+  "exclude": [
+    "**/bin",
+    "**/bower_components",
+    "**/jspm_packages",
+    "**/node_modules",
+    "**/obj",
+    "**/platforms"
+  ]
+}
