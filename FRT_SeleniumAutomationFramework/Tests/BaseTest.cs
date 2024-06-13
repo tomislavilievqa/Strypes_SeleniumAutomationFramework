@@ -20,25 +20,29 @@ namespace Strypes_SeleniumAutomationFramework.Tests
 {
     public class BaseTest : IDisposable
     {
-        private ThreadLocal<IWebDriver> _driver = new ThreadLocal<IWebDriver>();
-        protected IWebDriver Driver => _driver.Value;
         private static ExtentReports _extentReports;
         private static ExtentHtmlReporter _htmlReporter;
-        public static ThreadLocal<ExtentTest> _test = new ThreadLocal<ExtentTest>();
-        protected EnvironmentManager _manager { get; set; }
-        private WebDriverFactory _factory { get; set; }
-        protected CurrentEnvironment environment { get; set; }
-        protected readonly string _browser;
+        private ThreadLocal<IWebDriver> _driver = new ThreadLocal<IWebDriver>();
+        private WebDriverFactory _factory;
+
+        protected IWebDriver Driver => _driver.Value;
+        protected EnvironmentManager _manager { get; private set; }
+        protected CurrentEnvironment environment { get; private set; }
+        protected BrowserType _currentBrowserType => (BrowserType)TestContext.CurrentContext.Test.Arguments[1];
+
+        private readonly string _browser;
         private readonly string _version;
         private readonly string _os;
         private readonly string _name;
-        private bool _isHeadless;
+        private readonly bool _isHeadless = true;
         private string _ltUserName;
         private string _ltAccessKey;
-        protected BrowserType _currentBrowserType => (BrowserType)TestContext.CurrentContext.Test.Arguments[1];
-        public string _testName => _className + "_" + TestContext.CurrentContext.Test.MethodName;
-        public string _className => TestContext.CurrentContext.Test.ClassName.Split('.', StringSplitOptions.RemoveEmptyEntries)[2];
-        protected string _baseUrl => $"https://{this.environment.BaseUrl}/";
+
+        public static ThreadLocal<ExtentTest> _test = new ThreadLocal<ExtentTest>();
+
+        protected string _testName => $"{_className}_{TestContext.CurrentContext.Test.MethodName}";
+        protected string _className => TestContext.CurrentContext.Test.ClassName.Split('.', StringSplitOptions.RemoveEmptyEntries)[2];
+        protected string _baseUrl => $"https://{environment.BaseUrl}/";
 
         public BaseTest(string browser, string version, string os, string name)
         {
@@ -52,14 +56,42 @@ namespace Strypes_SeleniumAutomationFramework.Tests
 
         [OneTimeSetUp]
         public void TestSetup()
-        {          
-            // ** Selecting the environment on which we want to execute the TC **
+        {
+            InitializeEnvironment();
+            InitializeReport();
+        }
+
+        [SetUp]
+        public void BeforeTest()
+        {
+            InitializeWebDriver();
+            StartTestReport();
+        }
+
+        [TearDown]
+        public void AfterTest()
+        {
+            EndTestReport();
+            DisposeDriver();
+        }
+
+        [OneTimeTearDown]
+        public void AfterAllTests()
+        {
+            _extentReports.Flush();
+        }
+
+        private void InitializeEnvironment()
+        {
             _manager = new EnvironmentManager();
             _manager.SetEnvironment("Production");
-            this.environment = _manager.GetCurrentEnvironment();
-            _ltUserName = this.environment.ltUserName;
-            _ltAccessKey = this.environment.ltAccessKey;
+            environment = _manager.GetCurrentEnvironment();
+            _ltUserName = environment.ltUserName;
+            _ltAccessKey = environment.ltAccessKey;
+        }
 
+        private void InitializeReport()
+        {
             string path = Assembly.GetCallingAssembly().CodeBase;
             string actualPath = path.Substring(0, path.LastIndexOf("bin"));
             string projectPath = new Uri(actualPath).LocalPath;
@@ -71,57 +103,45 @@ namespace Strypes_SeleniumAutomationFramework.Tests
             }
 
             _htmlReporter = new ExtentHtmlReporter(Path.Combine(reportPath, "index.html"));
-
             _extentReports = new ExtentReports();
             _extentReports.AttachReporter(_htmlReporter);
-            _extentReports.AddSystemInfo("Environment", $"{this.environment}");
+            _extentReports.AddSystemInfo("Environment", $"{environment}");
             _extentReports.AddSystemInfo("Tester", Environment.UserName);
             _extentReports.AddSystemInfo("MachineName", Environment.MachineName);
         }
 
-        [SetUp]
-        public void BeforeTest()
+        private void InitializeWebDriver()
         {
             _factory = new WebDriverFactory();
-
-            // Initialize WebDriver in a thread-safe manner
             _driver.Value = _factory.CreateBrowser(Network.Local, _browser, _version, _os, _name, _ltUserName, _ltAccessKey, !_isHeadless);
+        }
 
+        private void StartTestReport()
+        {
             _test.Value = _extentReports.CreateTest($"{TestContext.CurrentContext.Test.MethodName}_{_browser}").Info("Test Started");
             _test.Value.AssignCategory(_className);
             _test.Value.AssignAuthor("Tomislav Iliev");
         }
 
-        [TearDown]
-        public void AfterTest()
+        private void EndTestReport()
         {
             var extentTest = _test.Value;
 
-            if (TestContext.CurrentContext.Result.Outcome.Status == NUnit.Framework.Interfaces.TestStatus.Passed)
+            switch (TestContext.CurrentContext.Result.Outcome.Status)
             {
-                extentTest.Pass("Test passed");
+                case NUnit.Framework.Interfaces.TestStatus.Passed:
+                    extentTest.Pass("Test passed");
+                    break;
+                case NUnit.Framework.Interfaces.TestStatus.Failed:
+                    extentTest.Fail("Test failed");
+                    break;
+                default:
+                    extentTest.Skip("Test skipped");
+                    break;
             }
-            else if (TestContext.CurrentContext.Result.Outcome.Status == NUnit.Framework.Interfaces.TestStatus.Failed)
-            {
-                extentTest.Fail("Test failed");
-            }
-            else
-            {
-                extentTest.Skip("Test skipped");
-            }
-
-            Dispose();
-
         }
 
-        [OneTimeTearDown]
-        public void AfterAllTests()
-        {
-            _extentReports.Flush();
-
-        }
-
-        public void Dispose()
+        private void DisposeDriver()
         {
             if (_driver.IsValueCreated)
             {
